@@ -13,12 +13,14 @@ def rename_func(args, microscope=rnf.IC6000):
     ignored=0
     renamed=0
     os.chdir(args.dir)
-    pattern = re.compile(rnf.microscope['pattern'])
+    #pattern = re.compile(rnf.microscope['pattern'])
+    pattern = re.compile(microscope['pattern'])
     for path_to_file in walker(os.getcwd()):
         image_name = os.path.basename(path_to_file)
         match = pattern.search(image_name)
         if match:
             params = match.groupdict()
+            #exp_name,well,site,channel = rnf.microscope['replace'](params, rnf.microscope['channels'])
             exp_name,well,site,channel = rnf.microscope['replace'](params, rnf.microscope['channels'])
             if args.check:
                 print image_name
