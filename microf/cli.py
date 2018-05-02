@@ -56,12 +56,12 @@ def main():
 
     rename = subparsers.add_parser('rename', help='Rename files')
     rename.add_argument('path', nargs='+', help='Path(s) of the files or directory to rename')
-    rename.add_argument('-check', action='store_true', help='Check conversion before renaming')
+    rename.add_argument('--check', '-check', action='store_true', help='Check conversion before renaming')
     rename.set_defaults(func=rename_func)  # set the default function to sync
 
     convert = subparsers.add_parser('convert', help='Convert files')
     convert.add_argument('path', nargs='+', help='Path(s) of the files or directory containing the .tif files to convert to .png')
-    convert.add_argument('-keep', action='store_true', help='Keeps original files')
+    convert.add_argument('--keep', '-keep', action='store_true', help='Keeps original files')
     convert.set_defaults(func=convert_func)  # set the default function to sync
 
     args = parser.parse_args()
