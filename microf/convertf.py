@@ -1,5 +1,5 @@
 import os
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import check_call
 
 def replace_ext(filename, ext):
         """
@@ -16,5 +16,3 @@ def run_convert(source_filepath, ext='png'):
         check_call(
             ['convert', source_filepath, '-depth', '16',
             '-colorspace', 'gray', final_filepath])
-
-
