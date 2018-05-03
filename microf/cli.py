@@ -11,7 +11,7 @@ import re
 from subprocess import check_call
 import sys
 
-from utils import build_path_list, grouper
+from utils import build_file_list, grouper
 import renamef as rnf
 import convertf as cnf
 
@@ -22,7 +22,7 @@ def rename_func(args, microscope=rnf.IC6000):
     channels = microscope['channels']
 
     ignored = 0
-    inbox = build_path_list(args.path)
+    inbox = build_file_list(args.path)
 
     # filter out those which don't match the given pattern
     to_do = []
@@ -90,7 +90,7 @@ def rename_func(args, microscope=rnf.IC6000):
 
 def convert_func(args):
     ignored = 0
-    inbox = build_path_list(args.path)
+    inbox = build_file_list(args.path)
 
     # filter out those which don't match the given pattern
     to_do = []
