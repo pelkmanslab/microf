@@ -51,11 +51,12 @@ def submit_to_slurm(cmds, size=1200, prefix=None):
 #SBATCH -c 1
 #SBATCH --mem-per-cpu=256m
 #SBATCH --time={minutes}
-#SBATCH --output={prefix}-%A_%a.log
-#SBATCH --error={prefix}-%A_%a.log
+#SBATCH --output={cwd}/{prefix}%A_%a.log
+#SBATCH --error={cwd}/{prefix}%A_%a.log
 
 case "$SLURM_ARRAY_TASK_ID" in
         """.format(
+            cwd=os.getcwd(),
             minutes=int(1 + (0.5 * size)/60),
             prefix=prefix,
         ))
