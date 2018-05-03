@@ -44,7 +44,9 @@ def grouper(iterable, size, fillvalue=None):
 def submit_to_slurm(cmds, size=1200, prefix=None):
     if prefix is None:
         stem, _ = splitext(basename(sys.argv[0]))
-        prefix = stem + '.'
+        prefix = stem
+    if not prefix.endswith('.'):
+        prefix += '.'
     with NamedTemporaryFile(
             prefix=prefix, suffix='.sh', delete=True) as script:
         script.write("""#!/bin/sh
@@ -91,7 +93,7 @@ def run(cmds, just_print=True, batch=0, verb=None):
         for cmd in cmds:
             print(cmd)
     elif batch:
-        submit_to_slurm(cmds, batch, prefix=(verb + '.'))
+        submit_to_slurm(cmds, batch, prefix=verb)
     else:
         # immediate action
         done = 0
