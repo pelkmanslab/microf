@@ -77,7 +77,7 @@ exit 70  # EX_SOFTWARE
         # ensure everything is actually written to disk
         script.flush()
         # now submit job array
-        call(['sbatch', '--array=0-{top}'.format(top=n-1), script.name])
+        call(['sbatch', '--array=0-{n}'.format(n=n), script.name])
 
 
 
