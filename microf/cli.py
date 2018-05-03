@@ -81,7 +81,7 @@ def convert_func(args):
         for old, new in to_do:
             cmds.append(fmt.format(old=old, new=new))
 
-        run(cmds, args.check, args.batch, 'rename')
+        run(cmds, args.check, args.batch, 'convert')
 
 
 def main():
