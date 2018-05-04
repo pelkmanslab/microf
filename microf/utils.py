@@ -1,8 +1,9 @@
 from __future__ import absolute_import, division, print_function
 
 from itertools import izip_longest
+import logging
 import os
-from os.path import basename, isabs, isdir, join, splitext
+from os.path import basename, exists, isabs, isdir, join, splitext
 from subprocess import call, check_call, CalledProcessError
 import sys
 from tempfile import NamedTemporaryFile
@@ -14,6 +15,9 @@ def build_file_list(paths):
     cwd = os.getcwd()
     result = []
     for path in paths:
+        if not exists(path):
+            logging.error("Path `%s` does not exist, ignoring.", path)
+            continue
         if not isabs(path):
             path = join(cwd, path)
         if isdir(path):
