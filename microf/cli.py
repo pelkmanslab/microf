@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function
 
 # Convert tif to png and rename files from IC6000 to CV7000 file format
 import argparse
+import logging
 import os
 import re
 
@@ -29,10 +30,10 @@ def rename_func(args, microscope=rnf.IC6000):
         if match:
             to_do.append(path)
         else:
-            print (image_name + ': Pattern does not match, ignored!')
+            logging.warn(image_name + ': Pattern does not match, ignored!')
             ignored += 1
-    print ("Examined {total} files: {to_do} to rename, {ignored} ignored."
-           .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
+    print("Examined {total} files: {to_do} to rename, {ignored} ignored."
+          .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
 
     if to_do:
         # build list of commands
@@ -85,6 +86,10 @@ def convert_func(args):
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)8s: %(message)s',
+    )
 
     parser = argparse.ArgumentParser(
         description='Convert .tif to .png and rename IC6000 files to CV7000 format')
