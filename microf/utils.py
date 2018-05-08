@@ -63,7 +63,7 @@ def submit_to_slurm(cmds, size=1200, prefix=None):
 case "$SLURM_ARRAY_TASK_ID" in
         """.format(
             cwd=os.getcwd(),
-            minutes=int(1 + (0.5 * size)/60),
+            minutes=int(1 + (5.0 * size)/60),
             prefix=prefix,
         ))
         for n, batch in enumerate(grouper(cmds, size, None)):
