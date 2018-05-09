@@ -2,15 +2,15 @@
 #
 # pylint: disable=fixme,line-too-long
 
-from __future__ import absolute_import, division, print_function
-
 """
 Micro File manipulation utility.
 
 * Convert TIFF files to PNG
-* Rename files from IC6000 to CV7000 file format.
+* Rename files from IC6000 to CV7000 naming format.
 
 """
+
+from __future__ import absolute_import, division, print_function
 
 import argparse
 from itertools import izip_longest
@@ -251,8 +251,7 @@ def main():
         format='%(levelname)8s: %(message)s',
     )
 
-    parser = argparse.ArgumentParser(
-        description='Convert .tif to .png and rename IC6000 files to CV7000 format')
+    parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers()
 
     rename = subparsers.add_parser('rename', help='Rename files')
