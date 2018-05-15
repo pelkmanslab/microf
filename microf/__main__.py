@@ -118,6 +118,12 @@ case "$SLURM_ARRAY_TASK_ID" in
             print("  {n})".format(n=n), file=script)
             print("    set -e -x", file=script)
             for cmd in batch:
+                # `grouper(..., None)` will right-pad the shorter
+                # batches with `None`, to ensure all batches have the
+                # required length.  So if we hit `None`, we know
+                # enumeration of commands ends here.
+                if cmd is None:
+                    break
                 print("    {cmd}".format(cmd=cmd), file=script)
             print("    exit 0;;", file=script)
         script.write("""
