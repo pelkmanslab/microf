@@ -5,8 +5,8 @@
 """
 Micro File manipulation utility.
 
-* Convert TIFF files to PNG
-* Rename files from IC6000 to CV7000 naming format.
+* Convert TIFF files to PNG (with action `convert`)
+* Rename files from IC6000 to CV7000 naming format (with action `rename`).
 
 """
 
@@ -251,41 +251,35 @@ def convert_func(args):
         run(cmds, args.check, args.batch, 'convert')
 
 
-def main():
+def main(argv):
     logging.basicConfig(
         level=logging.INFO,
         format='%(levelname)8s: %(message)s',
     )
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers()
-
-    rename = subparsers.add_parser('rename', help='Rename files')
-    rename.add_argument('path', nargs='+', help='Path(s) of the files or directory to rename')
-    rename.add_argument('--batch', '-batch', nargs='?', metavar='NUM',
-                        action='store', type=int, default=0, const=1200,
-                        help=(
-                            'Submit rename job to SLURM cluster in batches of NUM images.'
-                            ' If this option is *not* specified, images will be processed one by one;'
-                            ' if NUM is not given, process images in batches of 1200.'))
-    rename.add_argument('--check', '-check', action='store_true', help='Check conversion before renaming')
-    rename.set_defaults(func=rename_func)  # set the default function to sync
-
-    convert = subparsers.add_parser('convert', help='Convert files')
-    convert.add_argument('path', nargs='+', help='Path(s) of the files or directory containing the .tif files to convert to .png')
-    convert.add_argument('--keep', '-keep', action='store_true', help='Keeps original files')
-    convert.add_argument('--check', '-check', action='store_true', help='Print commands but do not execute them')
-    convert.add_argument('--batch', '-batch', nargs='?', metavar='NUM',
+    cmdline = argparse.ArgumentParser(description=__doc__)
+    cmdline.add_argument('action', choices=['convert', 'rename'],
+                         help='Action to be performed on the selected files.')
+    cmdline.add_argument('path', nargs='+',
+                         help=('Path(s) of the files or directory on which to act.'))
+    cmdline.add_argument('--keep', '-keep', action='store_true',
+                         help='Do not delete original files.')
+    cmdline.add_argument('--check', '-check', action='store_true',
+                         help='Print commands but do not execute them')
+    cmdline.add_argument('--batch', '-batch', nargs='?', metavar='NUM',
                          action='store', type=int, default=0, const=1200,
                          help=(
-                             'Submit rename job to SLURM cluster in batches of NUM images.'
+                             'Submit action to SLURM cluster in batches of NUM images.'
                              ' If this option is *not* specified, images will be processed one by one;'
                              ' if NUM is not given, process images in batches of 1200.'))
-    convert.set_defaults(func=convert_func)  # set the default function to sync
 
-    args = parser.parse_args()
-    args.func(args)
+    args = cmdline.parse_args(argv)
+    if args.action == 'rename':
+        rename_func(args)
+    elif args.action == 'convert':
+        convert_func(args)
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    main(sys.argv[1:])
