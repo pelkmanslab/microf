@@ -17,6 +17,7 @@ from itertools import izip_longest
 import logging
 import os
 from os.path import basename, exists, isabs, isdir, join, splitext
+import posix
 import re
 from subprocess import call, check_call, CalledProcessError
 import sys
@@ -263,7 +264,8 @@ def main(argv):
     cmdline.add_argument('path', nargs='+',
                          help=('Path(s) of the files or directory on which to act.'))
     cmdline.add_argument('--keep', '-keep', action='store_true',
-                         help='Do not delete original files.')
+                         help=('Do not delete original files.'
+                               ' Cannot be used with action "rename".'))
     cmdline.add_argument('--check', '-check', action='store_true',
                          help='Print commands but do not execute them')
     cmdline.add_argument('--batch', '-batch', nargs='?', metavar='NUM',
@@ -275,6 +277,10 @@ def main(argv):
 
     args = cmdline.parse_args(argv)
     if args.action == 'rename':
+        if args.keep:
+            logging.error(
+                "Cannot use option `--keep` with `rename` action.")
+            sys.exit(posix.EX_USAGE)
         rename_func(args)
     elif args.action == 'convert':
         convert_func(args)
