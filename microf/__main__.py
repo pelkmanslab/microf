@@ -266,9 +266,11 @@ def main(argv):
     cmdline.add_argument('--keep', '-keep', action='store_true',
                          help=('Do not delete original files.'
                                ' Cannot be used with action "rename".'))
-    cmdline.add_argument('--check', '-check', action='store_true',
+    cmdline.add_argument('--check', '-check', '-n',
+                         action='store_true', default=False,
                          help='Print commands but do not execute them')
-    cmdline.add_argument('--batch', '-batch', action='store_true', default=False,
+    cmdline.add_argument('--batch', '-batch', '-b',
+                         action='store_true', default=False,
                          help=(
                              'Submit action to SLURM cluster in batches.'
                              ' If this option is *not* specified,'
