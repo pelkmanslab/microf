@@ -268,12 +268,19 @@ def main(argv):
                                ' Cannot be used with action "rename".'))
     cmdline.add_argument('--check', '-check', action='store_true',
                          help='Print commands but do not execute them')
-    cmdline.add_argument('--batch', '-batch', nargs='?', metavar='NUM',
-                         action='store', type=int, default=0, const=1200,
+    cmdline.add_argument('--batch', '-batch', action='store_true', default=False,
                          help=(
-                             'Submit action to SLURM cluster in batches of NUM images.'
-                             ' If this option is *not* specified, images will be processed one by one;'
-                             ' if NUM is not given, process images in batches of 1200.'))
+                             'Submit action to SLURM cluster in batches.'
+                             ' If this option is *not* specified,'
+                             ' images will be processed one by one.'
+                             ' The batch size can be controlled'
+                             ' with option `--batch-size`.'))
+    cmdline.add_argument('--batch-size', metavar='NUM',
+                         action='store', type=int, default=200,
+                         help=(
+                             'Process images in independent batches of size NUM on a cluster.'
+                             ' Only used in conjunction with option `--batch`.'
+                             ' if NUM is not given, process images in batches of 200.'))
 
     args = cmdline.parse_args(argv)
     if args.action == 'rename':
