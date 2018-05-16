@@ -73,6 +73,16 @@ class Action(object):
         return (fmts, state)
 
 
+class Mention(Action):
+    """
+    Insert a comment line indicating processing instructions for a certain file.
+    """
+
+    def process(self, fmts, **state):
+        fmts.append("# '{old}' -> '{new}'")
+        return (fmts, state)
+
+
 class NewName(Action):
     """
     Make a link to the source file under a (possibly) new name.
@@ -309,8 +319,10 @@ def listdir_recursive(path):
 ## main
 
 def build_pipeline(args):
-    actions = []
-    if args.action == 'convert':
+    actions = [
+        Mention(args)
+    ]
+    if args.convert:
         actions.append(TiffToPng(args))
     elif args.rename:
         actions.append(IC6kToCV7k(args))
