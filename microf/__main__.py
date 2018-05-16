@@ -424,7 +424,12 @@ def parse_command_line(argv):
         args.rename = True
         del args.path[0]
 
+    if not (args.convert or args.rename):
+        cmdline.error(
+            "At least one of options `--convert` or `--rename` should be given.")
+
     return args
+
 
 def main(argv):
     setup_logging()
