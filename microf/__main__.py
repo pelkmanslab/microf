@@ -371,7 +371,8 @@ set -e -x
 rm -f {array_task_job}
 
 # ...the last-run script will succeed in removing the (now empty) directory
-rmdir -v --ignore-fail-on-non-empty {jobdir} 2>/dev/null
+sleep 1
+rmdir -v {jobdir} 2>/dev/null
 
 # if we get to this point, all went well
 exit 0
