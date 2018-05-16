@@ -295,51 +295,6 @@ def listdir_recursive(path):
             yield join(dirpath, filename)
 
 
-def submit_to_slurm(cmds, size=1200, prefix=None):
-    if prefix is None:
-        stem, _ = splitext(basename(sys.argv[0]))
-        prefix = stem
-    if not prefix.endswith('.'):
-        prefix += '.'
-    with NamedTemporaryFile(
-            prefix=prefix, suffix='.sh', delete=True) as script:
-        script.write("""#!/bin/sh
-#SBATCH -c 1
-#SBATCH --mem-per-cpu=256m
-#SBATCH --time={minutes}
-#SBATCH --output={cwd}/{prefix}%A_%a.log
-#SBATCH --error={cwd}/{prefix}%A_%a.log
-
-case "$SLURM_ARRAY_TASK_ID" in
-        """.format(
-            cwd=os.getcwd(),
-            minutes=int(1 + (5.0 * size)/60),
-            prefix=prefix,
-        ))
-        for n, batch in enumerate(grouper(cmds, size, None)):
-            print("  {n})".format(n=n), file=script)
-            print("    set -e -x", file=script)
-            for cmd in batch:
-                # `grouper(..., None)` will right-pad the shorter
-                # batches with `None`, to ensure all batches have the
-                # required length.  So if we hit `None`, we know
-                # enumeration of commands ends here.
-                if cmd is None:
-                    break
-                print("    {cmd}".format(cmd=cmd), file=script)
-            print("    exit 0;;", file=script)
-        script.write("""
-esac
-
-echo 1>&2 "Array job ID $SLURM_ARRAY_TASK_ID not matched in script"
-exit 70  # EX_SOFTWARE
-""")
-        # ensure everything is actually written to disk
-        script.flush()
-        # now submit job array
-        call(['sbatch', '--array=0-{n}'.format(n=n), script.name])
-
-
 def quote(arg):
     return "'{}'".format(arg)
 
@@ -379,6 +334,72 @@ def split_image_extension(filename):
         return (stem, ext)
     else:
         return (filename, '')
+
+
+def submit_to_slurm(cmds, size=200, prefix=None):
+    if prefix is None:
+        stem, _ = splitext(basename(sys.argv[0]))
+        prefix = stem
+    if not prefix.endswith('.'):
+        prefix += '.'
+
+    # NOTE: we need the `jobdir` directory to be visible (under the
+    # same path) from both submission and worker nodes -- let's just
+    # assume that the current working directory has this property
+    cwd = os.getcwd()
+    jobdir = mkdtemp(dir=cwd, prefix=prefix, suffix='.d')
+    for n, batch in enumerate(grouper(cmds, size, None)):
+        array_task_job = '{0}/{1}{2}.sh'.format(jobdir, prefix, n)
+        with open(array_task_job, 'w') as script:
+            script.write("""#! /bin/sh
+
+# print commands e(x)ecuted and (e)xit on first error
+set -e -x
+            """)
+            for cmd in batch:
+                # `grouper(..., None)` will right-pad the shorter
+                # batches with `None`, to ensure all batches have the
+                # required length.  So if we hit `None`, we know
+                # enumeration of commands ends here.
+                if cmd is None:
+                    break
+                print("{cmd}".format(cmd=cmd), file=script)
+            script.write("""
+# remove this script so that...
+rm -f {array_task_job}
+
+# ...the last-run script will succeed in removing the (now empty) directory
+rmdir -v --ignore-fail-on-non-empty {array_task_job}
+
+# if we get to this point, all went well
+exit 0
+            """.format(
+                array_task_job=array_task_job
+            ))
+            # ensure everything is actually written to disk
+            script.flush()
+
+    with NamedTemporaryFile(
+            prefix=prefix, suffix='.sh', delete=True) as script:
+        script.write("""#!/bin/sh
+#SBATCH -c 1
+#SBATCH --mem-per-cpu=256m
+#SBATCH --time={minutes}
+#SBATCH --output={cwd}/{prefix}%A_%a.log
+#SBATCH --error={cwd}/{prefix}%A_%a.log
+
+exec /bin/sh {jobdir}/{prefix}"$SLURM_ARRAY_TASK_ID".sh "$@"
+        """.format(
+            cwd=cwd,
+            jobdir=jobdir,
+            minutes=int(1 + (5.0 * size)/60),
+            prefix=prefix,
+        ))
+        # ensure everything is actually written to disk
+        script.flush()
+
+        # now submit job array
+        call(['sbatch', '--array=0-{n}'.format(n=n), script.name])
 
 
 def xor(a, b):

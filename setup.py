@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='microf',
-    version='0.5.0',
+    version='0.6.0',
     packages=['microf'],
     entry_points={
         'console_scripts': ['mf=microf:main'],
