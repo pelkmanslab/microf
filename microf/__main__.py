@@ -301,7 +301,9 @@ def quote(arg):
 
 def run(cmds, just_print=True, batch=0, verb=None):
     if verb is None:
-        verb = splitext(basename(sys.argv[0]))
+        verb, _ = splitext(basename(sys.argv[0]))
+        if verb == '__main__':
+            verb = 'process'
     if just_print:
         # print commands but don't run them
         for cmd in cmds:
