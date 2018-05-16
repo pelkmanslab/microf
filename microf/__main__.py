@@ -312,7 +312,7 @@ def build_pipeline(args):
     actions = []
     if args.action == 'convert':
         actions.append(TiffToPng(args))
-    elif args.action == 'rename':
+    elif args.rename:
         actions.append(IC6kToCV7k(args))
         actions.append(NewName(args))
     if not args.keep:
@@ -357,7 +357,7 @@ def do_actions(actions, args):
                 fmts, state = action.process(fmts, **state)
             cmd = '\n'.join(fmt.format(**state) for fmt in fmts)
             cmds.append(cmd)
-        run(cmds, args.check, args.batch, args.action)
+        run(cmds, args.check, args.batch)
 
 
 def setup_logging():
@@ -369,16 +369,8 @@ def setup_logging():
 
 def parse_command_line(argv):
     cmdline = argparse.ArgumentParser(description=__doc__)
-    cmdline.add_argument('action', choices=['convert', 'rename'],
-                         help='Action to be performed on the selected files.')
     cmdline.add_argument('path', nargs='+',
                          help=('Path(s) of the files or directory on which to act.'))
-    cmdline.add_argument('--keep', '-keep', action='store_true',
-                         help=('Do not delete original files.'
-                               ' Cannot be used with action "rename".'))
-    cmdline.add_argument('--check', '-check', '--just-print', '-n',
-                         action='store_true', default=False,
-                         help='Print commands but do not execute them.')
     cmdline.add_argument('--batch', '-batch', '-b',
                          action='store_true', default=False,
                          help=(
@@ -393,9 +385,34 @@ def parse_command_line(argv):
                              'Process images in independent batches of size NUM on a cluster.'
                              ' Only used in conjunction with option `--batch`.'
                              ' if NUM is not given, process images in batches of 200.'))
+    cmdline.add_argument('--check', '-check', '--just-print', '-n',
+                         action='store_true', default=False,
+                         help='Print commands but do not execute them.')
+    cmdline.add_argument('--convert', action='store_true', default=False,
+                         help='Convert TIFF images to 16-bit grayscale PNG.')
+    cmdline.add_argument('--keep', '-keep', action='store_true',
+                         help="Do not delete original files.")
+    cmdline.add_argument('--rename', action='store_true', default=False,
+                         help=("Rename image files"
+                               " from the IC6000 naming convention"
+                               " to the Yokogawa CV7000 one."))
 
-    return cmdline.parse_args(argv)
+    args = cmdline.parse_args(argv)
 
+    if args.path[0] == 'convert':
+        logging.warning(
+            "Please add `--convert` on the command-line"
+            " instead of writing `convert` as first file name.")
+        args.convert = True
+        del args.path[0]
+    elif args.path[0] == 'rename':
+        logging.warning(
+            "Please add `--rename` on the command-line"
+            " instead of writing `rename` as first file name.")
+        args.rename = True
+        del args.path[0]
+
+    return args
 
 def main(argv):
     setup_logging()
