@@ -24,41 +24,168 @@ import sys
 from tempfile import NamedTemporaryFile
 
 
-## microscope file format data
-
-CV7000 = '{}_{}_T0001F{}L01A01Z01C{}.tif'
-
-def _IC6000_replace(params, channels):
+class Action(object):
     """
-    Extract metadata from filename.
+    Base class for all actions.
 
-    These are examples of filenames that can be parsed::
-
-        C_13_fld_2_wv_405_Blue.tif
-        20180328_TestAbs_G - 8(fld 4 wv Red - Cy5).tif
+    Methods implemented in *this* class do nothing; derived classes
+    need to provide their own implementation to actually produce an
+    effect.
     """
-    exp_name = params['n'].replace("_","")
-    well_letter = params['w'].replace(" ","").split('-')[0]
-    well_number = params['w'].replace(" ","").split('-')[1].zfill(2)
-    site = str(params['s'].zfill(3))
-    channel = channels[params['c'].replace(" ","")]
-    return exp_name, well_letter+well_number, site, channel
 
-IC6000 = {
-    'pattern': r'(?P<n>.*_.*)_(?P<w>[A-Z]\D*\d*)\(fld\D*(?P<s>\d*)\D*wv(?P<c>.*)\).(tif|png)',
-    'channels': {
-        'UV-DAPI':     '01',
-        'Blue-FITC':   '02',
-        'Green-dsRed': '03',
-        'Red-Cy5':     '04',
-    },
-    'replace': _IC6000_replace,
-}
+    def __init__(self, opts):
+        self._opts = opts
+
+    def accept(self, filename):
+        """
+        Return a pair *(new, params)* specifying effects of running
+        this action, or raise a `Action.Reject` exception to signal
+        that the file should *not* be processed.
+
+        It is assumed that the command built by the `process`:meth:
+        will read data from the given *filename* and store processed
+        data into file *new* (may be the same filename).  Second item
+        *params* is a key/value mapping that will be addded to the
+        global pipeline state (which is passed around in the
+        `process`:meth: calls).
+
+        By default, no transformation is applied to the filename
+        (i.e., *filename* and *new* are exactly the same), and no
+        additional parameters are defined.
+        """
+        return (filename, {})
+
+    class Reject(RuntimeError):
+        """
+        Signal that a file cannot be processed by this action.
+
+        The exception message gives a reason.
+        """
+        pass
+
+    def process(self, fmts, **state):
+        """
+        Add actions to pair *(fmts, state)*.
+
+        By default, no action is taken.  Override this method in
+        derived classes to actually implement any functionality.
+        """
+        return (fmts, state)
+
+
+class NewName(Action):
+    """
+    Make a link to the source file under a (possibly) new name.
+    """
+
+    def process(self, fmts, **state):
+        if state['old'] != state['new']:
+            fmts.append("ln -f '{old}' '{new}'")
+        return (fmts, state)
+
+
+class Remove(Action):
+    """
+    Remove original files after processing.
+    """
+
+    def process(self, fmts, **state):
+        if not state['keep']:
+            fmts.append("rm -f '{old}'")
+        return (fmts, state)
+
+
+class TiffToPng(Action):
+    """
+    Convert TIFF files to PNG.
+    """
+
+    name = 'tiff-to-png'
+
+    def accept(self, filename):
+        stem, ext = os.path.splitext(filename)
+        if ext.lower() in ['.tif', '.tiff']:
+            return (
+                # destination file name
+                stem + '.png',
+                # additional state
+                {}
+            )
+        else:
+            raise self.Reject("not a TIFF file")
+
+    def process(self, fmts, **state):
+        fmts.append("convert -depth 16 -colorspace gray '{old}' '{new}'")
+        return (fmts, state)
+
+
+class IC6kToCV7k(Action):
+    """
+    Convert file names from the pattern used on IC6000 to Yokogawa's CV7000.
+    """
+
+    name = 'ic6k-to-cv7k'
+
+    def accept(self, filename):
+        match = self._ic6000_pattern.match(filename)
+        if not match:
+            raise self.Reject(
+                "file name does not match the configured IC6000 pattern")
+        # extract metadata from the file name
+        try:
+            old_md = match.groupdict()
+            new_md = {}
+            new_md['experiment_name'] = (old_md['date'] + '_' + old_md['name'])
+            new_md['well_letter'] = old_md['well_letter']
+            new_md['well_nr'] = int(old_md['well_nr'])
+            new_md['site'] = int(old_md['site'])
+            new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
+        except Exception as err:
+            raise RuntimeError(
+                "Cannot parse file name `{0}` with IC6000 pattern: {1}"
+                .format(filename, err))
+        return (
+            # destination
+            self._cv7000_fmt.format(**new_md),
+            # additional state
+            new_md
+        )
+
+    _cv7000_fmt = '{experiment_name}_{well_letter}{well_nr:02d}_T0001F{site:03d}L01A01Z01C{channel:02d}.tif'
+
+    # FIXME: this pattern seems specific to the current configuration
+    # of the IC6000 at PelkmansLab
+    _ic6000_pattern = re.compile(
+        (
+            # example pattern to match:
+            #
+            #   20180328_TestAbs_G - 8(fld 4 wv Red - Cy5).tif
+            #
+            r'(?P<date>[0-9]{8})_'
+            r'(?P<name>[^_]+)_'
+            r'(?P<well_letter>[A-Z]+) - (?P<well_nr>[0-9]+)'
+            r'\('
+            r'fld (?P<site>[0-9]+)'
+            r' wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>.+)'
+            r'\)'
+            r'\.'
+        ),
+        #'(?P<w>[A-Z]\D*\d*)\(fld\D*(?P<s>\d*)\D*wv(?P<c>.*)\).(tif|png)',
+        re.I)
+
+    # FIXME: like the above, this pattern seems specific to the
+    # current configuration of the IC6000 at PelkmansLab
+    _ic6000_channels = {
+        'DAPI':  1,
+        'FITC':  2,
+        'dsRed': 3,
+        'Cy5':   4,
+    }
 
 
 ## utility functions
 
-def build_file_list(paths):
+def build_path_list(paths):
     """
     """
     cwd = os.getcwd()
@@ -70,7 +197,7 @@ def build_file_list(paths):
         if not isabs(path):
             path = join(cwd, path)
         if isdir(path):
-            result.extend(walker(path))
+            result.extend(listdir_recursive(path))
         else:
             result.append(path)
     return result
@@ -169,7 +296,7 @@ def run(cmds, just_print=True, batch=0, verb=None):
             .format(verb=verb, done=done, errored=errored))
 
 
-def walker(path):
+def listdir_recursive(path):
     """
     Iterate over all file names in the directory tree rooted at *path*.
     """
@@ -181,83 +308,66 @@ def walker(path):
 
 ## main
 
-def rename_func(args, microscope=IC6000):
-    pattern = re.compile(microscope['pattern'], re.I)
-    replace_fn = microscope['replace']
-    channels = microscope['channels']
+def build_pipeline(args):
+    actions = []
+    if args.action == 'convert':
+        actions.append(TiffToPng(args))
+    elif args.action == 'rename':
+        actions.append(IC6kToCV7k(args))
+        actions.append(NewName(args))
+    if not args.keep:
+        actions.append(Remove(args))
+    return actions
 
+
+def do_actions(actions, args):
+    # build list of files to process
     ignored = 0
-    inbox = build_file_list(args.path)
-
-    # filter out those which don't match the given pattern
-    to_do = []
+    inbox = build_path_list(args.path)
+    to_do = {}
     for path in inbox:
-        image_name = os.path.basename(path)
-        match = pattern.search(image_name)
-        if match:
-            to_do.append(path)
+        filename = basename(path)
+        state = {
+            'old': filename,
+            'check': args.check,
+            'keep': args.keep,
+        }
+        for action in actions:
+            try:
+                new, params = action.accept(filename)
+            except Action.Reject as err:
+                logging.info("Ignoring file `%s`: %s", path, err)
+                ignored += 1
+                break
+            state.update(params)
+            filename = new
         else:
-            logging.warn(image_name + ': Pattern does not match, ignored!')
-            ignored += 1
-    print("Examined {total} files: {to_do} to rename, {ignored} ignored."
-          .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
+            state['new'] = filename
+            to_do[path] = state
+    print(
+        "Examined {total} files: {to_do} to convert, {ignored} ignored."
+        .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
 
+    # build and run list of commands
     if to_do:
-        # build list of commands
-        fmt = "mv '{old}' '{new}'"
         cmds = []
-        for path in to_do:
-            image_name = os.path.basename(path)
-            match = pattern.search(image_name)
-            params = match.groupdict()
-            exp_name, well, site, channel = replace_fn(params, channels)
-            old = path
-            new = os.path.join(
-                os.path.dirname(path),
-                CV7000.format(exp_name, well, site, channel))
-            cmds.append(fmt.format(old=old, new=new))
-
-        run(cmds, args.check, args.batch, 'rename')
+        for path, state in to_do.iteritems():
+            fmts = []
+            for action in actions:
+                fmts, state = action.process(fmts, **state)
+            cmd = '\n'.join(fmt.format(**state) for fmt in fmts)
+            cmds.append(cmd)
+        run(cmds, args.check, args.batch, args.action)
 
 
-def convert_func(args):
-    ignored = 0
-    inbox = build_file_list(args.path)
-
-    # filter out those which don't match the given pattern
-    to_do = []
-    for path in inbox:
-        stem, ext = os.path.splitext(path)
-        if ext.lower() in ['.tif', '.tiff']:
-            to_do.append((
-                # source file name
-                path,
-                # destination file name
-                stem + '.png',
-            ))
-        else:
-            print (path + ': no TIFF extension, ignored!')
-            ignored += 1
-    print ("Examined {total} files: {to_do} to convert, {ignored} ignored."
-           .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
-
-    if to_do:
-        fmt = "convert -depth 16 -colorspace gray '{old}' '{new}'"
-        if not args.keep:
-            fmt += "; rm -f '{old}'"
-        cmds = []
-        for old, new in to_do:
-            cmds.append(fmt.format(old=old, new=new))
-
-        run(cmds, args.check, args.batch, 'convert')
-
-
-def main(argv):
+def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
         format='%(levelname)8s: %(message)s',
     )
 
+
+def parse_command_line(argv):
     cmdline = argparse.ArgumentParser(description=__doc__)
     cmdline.add_argument('action', choices=['convert', 'rename'],
                          help='Action to be performed on the selected files.')
@@ -266,9 +376,9 @@ def main(argv):
     cmdline.add_argument('--keep', '-keep', action='store_true',
                          help=('Do not delete original files.'
                                ' Cannot be used with action "rename".'))
-    cmdline.add_argument('--check', '-check', '-n',
+    cmdline.add_argument('--check', '-check', '--just-print', '-n',
                          action='store_true', default=False,
-                         help='Print commands but do not execute them')
+                         help='Print commands but do not execute them.')
     cmdline.add_argument('--batch', '-batch', '-b',
                          action='store_true', default=False,
                          help=(
@@ -284,15 +394,14 @@ def main(argv):
                              ' Only used in conjunction with option `--batch`.'
                              ' if NUM is not given, process images in batches of 200.'))
 
-    args = cmdline.parse_args(argv)
-    if args.action == 'rename':
-        if args.keep:
-            logging.error(
-                "Cannot use option `--keep` with `rename` action.")
-            sys.exit(posix.EX_USAGE)
-        rename_func(args)
-    elif args.action == 'convert':
-        convert_func(args)
+    return cmdline.parse_args(argv)
+
+
+def main(argv):
+    setup_logging()
+    args = parse_command_line(argv)
+    actions = build_pipeline(args)
+    do_actions(actions, args)
 
 
 if __name__ == '__main__':
