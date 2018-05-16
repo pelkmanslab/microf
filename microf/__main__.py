@@ -16,7 +16,7 @@ import argparse
 from itertools import izip_longest
 import logging
 import os
-from os.path import basename, exists, isabs, isdir, join, splitext
+from os.path import basename, dirname, exists, isabs, isdir, join, splitext
 import posix
 import re
 from subprocess import call, check_call, CalledProcessError
@@ -437,7 +437,7 @@ def do_actions(actions, args):
     for path in inbox:
         filename = basename(path)
         state = {
-            'old': filename,
+            'old': path,
             'check': args.check,
             'keep': args.keep,
         }
@@ -451,7 +451,7 @@ def do_actions(actions, args):
             state.update(params)
             filename = new
         else:
-            state['new'] = filename
+            state['new'] = join(dirname(path), filename)
             to_do[path] = state
     print(
         "Examined {total} files: {to_do} to convert, {ignored} ignored."
