@@ -467,7 +467,7 @@ def do_actions(actions, args):
                 fmts, state = action.process(fmts, **state)
             cmd = '\n'.join(fmt.format(**state) for fmt in fmts)
             cmds.append(cmd)
-        run(cmds, args.check, args.batch)
+        run(cmds, args.check, (args.batch_size if args.batch else 0))
 
 
 def setup_logging():
