@@ -21,7 +21,7 @@ import posix
 import re
 from subprocess import call, check_call, CalledProcessError
 import sys
-from tempfile import NamedTemporaryFile
+from tempfile import mkdtemp, NamedTemporaryFile
 
 
 class Action(object):
