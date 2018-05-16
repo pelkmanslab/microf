@@ -105,6 +105,60 @@ class Remove(Action):
         return (fmts, state)
 
 
+class Rename(Action):
+    """
+    Rename files according to a user-specified pattern.
+    """
+    def __init__(self, opts):
+        super(Rename, self).__init__(opts)
+        if not opts.from_pattern or not opts.to_pattern:
+            self._from_pattern = None
+            self.to_pattern = None
+        else:
+            if opts.from_pattern.count('*') != opts.to_pattern.count('*'):
+                raise RuntimeError(
+                    "The patterns provided to `--from-pattern` and `--to-pattern`"
+                    " do not contain the same number of `*` wildcard characters.")
+            self.from_pattern = self._make_filename_re(opts.from_pattern)
+            self.to_pattern = self._make_filename_fmt(opts.to_pattern)
+
+    def _make_filename_re(self, glob_pattern):
+        return re.compile(self._make_star_pattern(
+            glob_pattern, r'(?P<wildcard{0}>.*)', re.escape))
+
+    def _make_filename_fmt(self, glob_pattern):
+        return self._make_star_pattern(
+            glob_pattern, r'{{wildcard{0}}}', lambda arg: arg)
+
+    @staticmethod
+    def _make_star_pattern(glob_pattern, star_fmt, escape):
+        glob_pattern, ext = split_image_extension(glob_pattern)
+        parts = glob_pattern.split('*')
+        num_stars = len(parts) - 1
+        stars = [star_fmt.format(n)
+                 for n in range(num_stars)]
+        fmt = (
+            ''.join(
+                ''.join([escape(parts[n]), stars[n]])
+                for n in range(num_stars)
+            ) + parts[-1] + ext
+        )
+        return fmt
+
+    def accept(self, filename):
+        if self.from_pattern is None:
+            return (filename, {})
+        match = self.from_pattern.match(filename)
+        if not match:
+            raise self.Reject(
+                "File name `{0}` does not match pattern"
+                " provided with `--from-pattern`"
+                .format(filename))
+        params = match.groupdict()
+        new = self.to_pattern.format(**params)
+        return (new, params)
+
+
 class TiffToPng(Action):
     """
     Convert TIFF files to PNG.
@@ -231,6 +285,16 @@ def grouper(iterable, size, fillvalue=None):
     return izip_longest(*args, fillvalue=fillvalue)
 
 
+def listdir_recursive(path):
+    """
+    Iterate over all file names in the directory tree rooted at *path*.
+    """
+    # pylint: disable=unused-variable
+    for dirpath, dirnames, filenames in os.walk(path):
+        for filename in filenames:
+            yield join(dirpath, filename)
+
+
 def submit_to_slurm(cmds, size=1200, prefix=None):
     if prefix is None:
         stem, _ = splitext(basename(sys.argv[0]))
@@ -276,7 +340,6 @@ exit 70  # EX_SOFTWARE
         call(['sbatch', '--array=0-{n}'.format(n=n), script.name])
 
 
-
 def quote(arg):
     return "'{}'".format(arg)
 
@@ -306,14 +369,20 @@ def run(cmds, just_print=True, batch=0, verb=None):
             .format(verb=verb, done=done, errored=errored))
 
 
-def listdir_recursive(path):
-    """
-    Iterate over all file names in the directory tree rooted at *path*.
-    """
-    # pylint: disable=unused-variable
-    for dirpath, dirnames, filenames in os.walk(path):
-        for filename in filenames:
-            yield join(dirpath, filename)
+def split_image_extension(filename):
+    stem, ext = splitext(filename)
+    if ext.lower() in [
+            '.jpg', '.jpeg'
+            '.png',
+            '.tiff', '.tif',
+    ]:
+        return (stem, ext)
+    else:
+        return (filename, '')
+
+
+def xor(a, b):
+    return bool(a) ^ bool(b)
 
 
 ## main
@@ -322,10 +391,15 @@ def build_pipeline(args):
     actions = [
         Mention(args)
     ]
+    # apply microscope metadata conversion before anything else
+    if args.rename:
+        actions.append(IC6kToCV7k(args))
+    # user-specified rename
+    if args.from_pattern:
+        actions.append(Rename(args))
     if args.convert:
         actions.append(TiffToPng(args))
     elif args.rename:
-        actions.append(IC6kToCV7k(args))
         actions.append(NewName(args))
     if not args.keep:
         actions.append(Remove(args))
@@ -402,12 +476,37 @@ def parse_command_line(argv):
                          help='Print commands but do not execute them.')
     cmdline.add_argument('--convert', action='store_true', default=False,
                          help='Convert TIFF images to 16-bit grayscale PNG.')
+    cmdline.add_argument('--from-pattern', '-f',
+                         action='store', default='', metavar='PATTERN',
+                         help=("Pattern that input files must match."
+                               " Every occurrence of the `*` character"
+                               " here can match any (possibly empty)"
+                               " sequence of characters, which will be"
+                               " preserved in the 'to' pattern;"
+                               " anything else will be replaced"
+                               " with the corresponding string"
+                               " in the pattern given by"
+                               " the `---to-pattern` option."
+                               " NOTE: no `.tif` or `.png` or similar"
+                               " extension should be given in the pattern"
+                               " --it will be automatically added."))
     cmdline.add_argument('--keep', '-keep', action='store_true',
                          help="Do not delete original files.")
     cmdline.add_argument('--rename', action='store_true', default=False,
                          help=("Rename image files"
                                " from the IC6000 naming convention"
                                " to the Yokogawa CV7000 one."))
+    cmdline.add_argument('--to-pattern', '-t',
+                         action='store', default='', metavar='PATTERN',
+                         help=("Pattern to produce output file names."
+                               " Every occurrence of the `*` character"
+                               " here will be substituted with the"
+                               " (possibly empty) sequence matched by"
+                               " the original filename in the pattern"
+                               " given to the `--from-pattern` option."
+                               " NOTE: no `.tif` or `.png` or similar"
+                               " extension should be given in the pattern"
+                               " --it will be automatically added."))
 
     args = cmdline.parse_args(argv)
 
@@ -427,6 +526,11 @@ def parse_command_line(argv):
     if not (args.convert or args.rename):
         cmdline.error(
             "At least one of options `--convert` or `--rename` should be given.")
+
+    if xor(args.from_pattern, args.to_pattern):
+        cmdline.error(
+            "If one of options `--from-pattern` or `--to-pattern` is given,"
+            " then the other must be given as well.")
 
     return args
 
