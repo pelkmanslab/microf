@@ -19,7 +19,7 @@ import os
 from os.path import basename, dirname, exists, isabs, isdir, join, splitext
 import posix
 import re
-from subprocess import call, check_call, CalledProcessError
+from subprocess import call, check_call, check_output, CalledProcessError
 import sys
 from tempfile import mkdtemp, NamedTemporaryFile
 
@@ -367,13 +367,6 @@ set -e -x
                     break
                 print("{cmd}".format(cmd=cmd), file=script)
             script.write("""
-# remove this script so that...
-rm -f {array_task_job}
-
-# ...the last-run script will succeed in removing the (now empty) directory
-sleep 1
-rmdir -v {jobdir} 2>/dev/null
-
 # if we get to this point, all went well
 exit 0
             """.format(
@@ -403,7 +396,32 @@ exec /bin/sh {jobdir}/{prefix}"$SLURM_ARRAY_TASK_ID".sh "$@"
         script.flush()
 
         # now submit job array
-        call(['sbatch', '--array=0-{n}'.format(n=n), script.name])
+        jobid = check_output(['sbatch', '--parsable', '--array=0-{n}'.format(n=n), script.name])
+        if ';' in jobid:
+            jobid = jobid.split(';')[0]
+        jobid = jobid.strip()
+        print("Submitted batch job {jobid}".format(jobid=jobid))
+
+    with NamedTemporaryFile(
+            prefix=prefix, suffix='.cleanup.sh', delete=True) as script:
+        script.write("""#!/bin/sh
+#SBATCH -c 1
+#SBATCH --mem-per-cpu=256m
+#SBATCH --time=1
+#SBATCH --output=/dev/null
+#SBATCH --error={cwd}/{prefix}cleanup.err
+
+rm -rfv {jobdir}
+        """.format(
+            cwd=cwd,
+            jobdir=jobdir,
+            prefix=prefix,
+        ))
+        # ensure everything is actually written to disk
+        script.flush()
+
+        # submit the cleanup job...
+        call(['sbatch', '--kill-on-invalid-dep=yes', '--dependency=afterok:{jobid}'.format(jobid=jobid), script.name])
 
 
 def xor(a, b):
