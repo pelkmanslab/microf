@@ -6,7 +6,9 @@
 Micro File manipulation utility.
 
 * Convert TIFF files to PNG (with action `convert`)
-* Rename files from IC6000 to CV7000 naming format (with action `rename`).
+* Rename files to the naming format used by the Yokogawa CV7000
+  (with action `rename`), when original files follow the IN Cell 6000
+  naming convention or the Visitron VisiTIRF/Visiscope one.
 
 """
 
@@ -185,7 +187,8 @@ class TiffToPng(Action):
 
 class IC6kToCV7k(Action):
     """
-    Convert file names from the pattern used on IC6000 to Yokogawa's CV7000.
+    Convert file names from the pattern used on IN Cell 6000
+    to Yokogawa's CV7000.
     """
 
     name = 'ic6k-to-cv7k'
@@ -245,6 +248,96 @@ class IC6kToCV7k(Action):
         'dsRed': 3,
         'Cy5':   4,
     }
+
+
+class VisiToCV7k(Action):
+    """
+    Convert file names from the pattern used on Visitron microscopes
+    to Yokogawa's CV7000.
+    """
+
+    name = 'visi-to-cv7k'
+
+    def __init__(self, opts):
+        super(VisiToCV7k, self).__init__(opts)
+        try:
+            self._plate_width, self._plate_height = self._parse_plate_size(opts.plate_size)
+        except AttributeError:
+            raise ValueError(
+                "Parsing VisiTIRF/VisiScope file names requires"
+                " that a plate size is set. "
+                " Use the `--plate-size` command line option.")
+
+    def _parse_plate_size(self, spec):
+        wh = spec.split('x')
+        if len(wh) != 2:
+            raise ValueError(
+                "Argument of `--plate-size` must have the format WxH,"
+                " where W and H are positive integers.")
+        w = int(wh[0])
+        h = int(wh[1])
+        if w < 1 or h < 1:
+            raise ValueError(
+                "Argument of `--plate-size` must have the format WxH,"
+                " where W and H are positive integers.")
+        return w, h
+
+    def accept(self, filename):
+        match = self._visi_pattern.match(filename)
+        if not match:
+            raise self.Reject(
+                "file name does not match the configured VisiScope/VisiTIRF pattern")
+        # extract metadata from the file name
+        try:
+            old_md = match.groupdict()
+            new_md = {}
+            new_md['experiment_name'] = old_md['experiment_name']
+            new_md['well_letter'], new_md['well_nr'] = self._to_cv7k_well(old_md['well_idx'])
+            new_md['site'] = int(old_md['site'])
+            new_md['channel'] = int(old_md['channel_nr'])
+        except Exception as err:
+            raise RuntimeError(
+                "Cannot parse file name `{0}` with Visitron pattern: {1}"
+                .format(filename, err))
+        return (
+            # destination
+            self._cv7000_fmt.format(**new_md),
+            # additional state
+            new_md
+        )
+
+    def _to_cv7k_well(self, well_idx):
+        well_idx = int(well_idx) - 1  # Visitron uses 1-based indexing
+        assert well_idx < self._plate_width * self._plate_height
+        well_letter = chr(ord('A') + (well_idx // self._plate_width))
+        well_nr = 1 + (well_idx % self._plate_width)
+        return well_letter, well_nr
+
+    _cv7000_fmt = '{experiment_name}_{well_letter}{well_nr:02d}_T0001F{site:03d}L01A{channel:02d}Z01C{channel:02d}.tif'
+
+    # FIXME: is this pattern specific of the current configuration of
+    # the Visitron microscopes at PelkmansLab?
+    _visi_pattern = re.compile(
+        (
+            # example patterns to match:
+            #
+            #     MT_test_well1_1_w1tirfDAPI_s1.png
+            #     MT_test_well10_1_w1tirfDAPI_s2.png
+            #     MT_test_well1_1_w2tirfGFP-G-R_s1.png
+            #     MT_test_well10_1_w2tirfGFP-G-R_s2.png
+            #     MT_test_well1_1_w3tirfRFP-G-R_s1.png
+            #     MT_test_well10_1_w3tirfRFP-G-R_s2.png
+            #     MT_test_well1_1_w4tirfCy5_s1.png
+            #     MT_test_well10_1_w4tirfCy5_s2.png
+            #
+            r'(?P<experiment_name>.+)'
+            r'_well(?P<well_idx>[0-9]+)'
+            r'_1'
+            r'_w(?P<channel_nr>[0-9]+)(?P<channel_tag>.+)'
+            r'_s(?P<site>[0-9]+)'
+            r'\.'
+        )
+    )
 
 
 ## utility functions
@@ -436,7 +529,14 @@ def build_pipeline(args):
     ]
     # apply microscope metadata conversion before anything else
     if args.rename:
-        actions.append(IC6kToCV7k(args))
+        if args.creator == 'ic6k':
+            actions.append(IC6kToCV7k(args))
+        elif args.creator == 'visi':
+            actions.append(VisiToCV7k(args))
+        else:
+            raise AssertionError(
+                "Unexpected value for the `--creator` option: {}"
+                .format(creator))
     # user-specified rename
     if args.from_pattern:
         actions.append(Rename(args))
@@ -519,6 +619,18 @@ def parse_command_line(argv):
                          help='Print commands but do not execute them.')
     cmdline.add_argument('--convert', action='store_true', default=False,
                          help='Convert TIFF images to 16-bit grayscale PNG.')
+    cmdline.add_argument('--creator', '-C', metavar='MODEL',
+                         action='store', default='ic6k',
+                         choices=[
+                             'ic6k',  # IN Cell 6000
+                             'visi',  # Visitron VisiTIRF/VisiScope
+                         ],
+                         help=("Model of the microscope that produced"
+                               " input files.  Sets the format used"
+                               " for extracting meta-data from file"
+                               " names.  Valid values are:"
+                               " `ic6k` for the IN Cell 6000 (default), and"
+                               " `visi` for Visitron's VisiTIRF/Visiscope."))
     cmdline.add_argument('--from-pattern', '-f',
                          action='store', default='', metavar='PATTERN',
                          help=("Pattern that input files must match."
@@ -531,13 +643,19 @@ def parse_command_line(argv):
                                " in the pattern given by"
                                " the `---to-pattern` option."
                                " NOTE: no `.tif` or `.png` or similar"
-                               " extension should be given in the pattern"
-                               " --it will be automatically added."))
+                               " extension should be given in the pattern;"
+                               " it will be automatically added."))
     cmdline.add_argument('--keep', '-keep', action='store_true',
                          help="Do not delete original files.")
+    cmdline.add_argument('--plate-size', metavar='WxH',
+                         action='store',
+                         help=("Assume a plate W sites wide and H sites high."
+                               " Only needed and used when renaming"
+                               " and the creator is a Visitron microscope."))
     cmdline.add_argument('--rename', action='store_true', default=False,
                          help=("Rename image files"
-                               " from the IC6000 naming convention"
+                               " from the creator microscope naming"
+                               " convention (see option `--creator`)"
                                " to the Yokogawa CV7000 one."))
     cmdline.add_argument('--to-pattern', '-t',
                          action='store', default='', metavar='PATTERN',
@@ -548,11 +666,12 @@ def parse_command_line(argv):
                                " the original filename in the pattern"
                                " given to the `--from-pattern` option."
                                " NOTE: no `.tif` or `.png` or similar"
-                               " extension should be given in the pattern"
-                               " --it will be automatically added."))
+                               " extension should be given in the pattern;"
+                               " it will be automatically added."))
 
     args = cmdline.parse_args(argv)
 
+    # accept non-option actions for backwards compatibility
     if args.path[0] == 'convert':
         logging.warning(
             "Please add `--convert` on the command-line"
