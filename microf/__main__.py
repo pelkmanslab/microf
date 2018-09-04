@@ -482,7 +482,7 @@ exec /bin/sh {jobdir}/{prefix}"$SLURM_ARRAY_TASK_ID".sh "$@"
         """.format(
             cwd=cwd,
             jobdir=jobdir,
-            minutes=int(1 + (5.0 * size)/60),
+            minutes=int(1 + (25.0 * size)/60),
             prefix=prefix,
         ))
         # ensure everything is actually written to disk
