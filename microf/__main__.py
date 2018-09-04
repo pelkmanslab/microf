@@ -26,6 +26,9 @@ import sys
 from tempfile import mkdtemp, NamedTemporaryFile
 
 
+from .__version__ import __version__
+
+
 class Action(object):
     """
     Base class for all actions.
@@ -668,6 +671,10 @@ def parse_command_line(argv):
                                " NOTE: no `.tif` or `.png` or similar"
                                " extension should be given in the pattern;"
                                " it will be automatically added."))
+    cmdline.add_argument('--version', '-V',
+                         action='version',
+                         version=('%(prog)s v{0}'.format(__version__)),
+                         help="Print program version and exit.")
 
     args = cmdline.parse_args(argv)
 

@@ -1,8 +1,10 @@
 from setuptools import setup
 
+from microf.__version__ import __version__
+
 setup(
     name='microf',
-    version='0.7.1',
+    version=__version__,
     packages=['microf'],
     entry_points={
         'console_scripts': ['mf=microf:main'],
