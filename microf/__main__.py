@@ -210,7 +210,7 @@ class IC6kToCV7k(Action):
             new_md['well_nr'] = int(old_md['well_nr'])
             new_md['site'] = int(old_md['site'])
             # If the IC6K filename contains a Z position, use it
-            if old_md['z_pos']:
+            if old_md['z_pos'] is not None:
                 new_md['zslice'] = int(old_md['z_pos'])
             # If there is no z position in the filename, default to 1
             else:
@@ -243,7 +243,7 @@ class IC6kToCV7k(Action):
             r'\('
             r'fld (?P<site>[0-9]+)'
             r' wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>\w*)'
-            r'( z (?P<z_pos>\d*))*'
+            r'( z (?P<z_pos>\d+))?'
             r'\)'
             r'\.'
         ),
