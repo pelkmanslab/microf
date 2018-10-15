@@ -209,6 +209,12 @@ class IC6kToCV7k(Action):
             new_md['well_letter'] = old_md['well_letter']
             new_md['well_nr'] = int(old_md['well_nr'])
             new_md['site'] = int(old_md['site'])
+            # If the IC6K filename contains a Z position, use it
+            if old_md['z_pos']:
+                new_md['zslice'] = int(old_md['z_pos'])
+            # If there is no z position in the filename, default to 1
+            else:
+                new_md['zslice'] = 1
             new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
         except Exception as err:
             raise RuntimeError(
@@ -221,7 +227,7 @@ class IC6kToCV7k(Action):
             new_md
         )
 
-    _cv7000_fmt = '{experiment_name}_{well_letter}{well_nr:02d}_T0001F{site:03d}L01A01Z01C{channel:02d}.tif'
+    _cv7000_fmt = '{experiment_name}_{well_letter}{well_nr:02d}_T0001F{site:03d}L01A01Z{zslice:02d}C{channel:02d}.tif'
 
     # FIXME: this pattern seems specific to the current configuration
     # of the IC6000 at PelkmansLab
@@ -236,7 +242,8 @@ class IC6kToCV7k(Action):
             r'(?P<well_letter>[A-Z]+) - (?P<well_nr>[0-9]+)'
             r'\('
             r'fld (?P<site>[0-9]+)'
-            r' wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>.+)'
+            r' wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>\w*)'
+            r'( z (?P<z_pos>\d*))*'
             r'\)'
             r'\.'
         ),
