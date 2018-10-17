@@ -666,8 +666,10 @@ def parse_command_line(argv):
                                " NOTE: no `.tif` or `.png` or similar"
                                " extension should be given in the pattern;"
                                " it will be automatically added."))
-    cmdline.add_argument('--keep', '-keep', action='store_true',
+    cmdline.add_argument('--keep', '-keep', action='store_true', dest='keep',
                          help="Do not delete original files.")
+    cmdline.add_argument('--no-keep', '-no-keep', action='store_false', dest='keep',
+                         help="Delete original files (default).")
     cmdline.add_argument('--plate-size', metavar='WxH',
                          action='store',
                          help=("Assume a plate W sites wide and H sites high."
