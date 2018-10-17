@@ -419,7 +419,9 @@ def run(cmds, just_print=True, batch=0, verb=None):
         errored = 0
         for cmd in cmds:
             try:
-                check_call(cmd, shell=True)
+                check_call(
+                    ["sh", "-c", ("set -e -x; %s" % cmd)],
+                    shell=False)
                 done += 1
             except CalledProcessError:
                 errored += 1
