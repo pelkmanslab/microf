@@ -584,7 +584,7 @@ def do_actions(actions, args):
             state['new'] = join(dirname(path), filename)
             to_do[path] = state
     print(
-        "Examined {total} files: {to_do} to convert, {ignored} ignored."
+        "Examined {total} files: {to_do} to process, {ignored} ignored."
         .format(total=len(inbox), to_do=len(to_do), ignored=ignored))
 
     # build and run list of commands
