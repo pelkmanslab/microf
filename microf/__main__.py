@@ -423,8 +423,17 @@ def run(cmds, just_print=True, batch=0, verb=None):
                     ["sh", "-c", ("set -e -x; %s" % cmd)],
                     shell=False)
                 done += 1
-            except CalledProcessError:
-                errored += 1
+            except CalledProcessError as err:
+                if err.returncode == 127:
+                    # "command not found" - abort execution entirely
+                    raise RuntimeError(
+                        "A needed command was not found;"
+                        " see error messages above."
+                        " Aborting execution early"
+                        " ({0:d} procesed, {1:d} still to do)."
+                        .format(done, len(cmds)-done))
+                else:
+                    errored += 1
         print(
             "Successfully applied {verb} to {done} files,"
             " {errored} errors."
@@ -714,10 +723,15 @@ def parse_command_line(argv):
 
 
 def main(argv):
-    setup_logging()
-    args = parse_command_line(argv)
-    actions = build_pipeline(args)
-    do_actions(actions, args)
+    try:
+        setup_logging()
+        args = parse_command_line(argv)
+        actions = build_pipeline(args)
+        do_actions(actions, args)
+        sys.exit(os.EX_OK)
+    except Exception as err:
+        logging.critical("%s: %s", err.__class__.__name__, err)
+        sys.exit(os.EX_SOFTWARE)
 
 
 if __name__ == '__main__':
