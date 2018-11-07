@@ -215,7 +215,10 @@ class IC6kToCV7k(Action):
             # If there is no z position in the filename, default to 1
             else:
                 new_md['zslice'] = 1
-            new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
+            if old_md['channel_tag'] is not None:
+                new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
+            else:
+                new_md['channel'] = self._default_channel
         except Exception as err:
             raise RuntimeError(
                 "Cannot parse file name `{0}` with IC6000 pattern: {1}"
@@ -242,7 +245,7 @@ class IC6kToCV7k(Action):
             r'(?P<well_letter>[A-Z]+) - (?P<well_nr>[0-9]+)'
             r'\('
             r'fld (?P<site>[0-9]+)'
-            r' wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>\w*)'
+            r'( wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>\w*))?'
             r'( z (?P<z_pos>\d+))?'
             r'\)'
             r'\.'
@@ -258,6 +261,11 @@ class IC6kToCV7k(Action):
         'dsRed': 3,
         'Cy5':   4,
     }
+
+    # when acquiring a single channel, IC6000 does not write the
+    # channel tag or other info in the file name; hard-code here how
+    # we want that channel to be mapped into the CV7k name space (`C01`)
+    _default_channel = 1
 
 
 class VisiToCV7k(Action):
