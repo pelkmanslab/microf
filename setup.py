@@ -7,7 +7,7 @@ setup(
     version=__version__,
     packages=['microf'],
     entry_points={
-        'console_scripts': ['mf=microf:main'],
+        'console_scripts': ['mf=microf.__main__:main'],
     },
     ## metadata for PyPI uploads
     description='Miscellaneous image file utilities',

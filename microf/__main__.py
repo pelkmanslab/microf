@@ -732,7 +732,7 @@ def parse_command_line(argv):
     return args
 
 
-def main(argv):
+def main(argv=sys.argv):
     try:
         setup_logging()
         args = parse_command_line(argv)
