@@ -8,7 +8,7 @@ Micro File manipulation utility.
 * Convert TIFF files to PNG (with action `convert`)
 * Rename files to the naming format used by the Yokogawa CV7000
   (with action `rename`), when original files follow the IN Cell 6000
-  naming convention or the Visitron VisiTIRF/Visiscope one.
+  naming convention or the Visitron VisiTIRF/Visiscope one or the YEC CQ1.
 
 """
 
@@ -187,6 +187,87 @@ class TiffToPng(Action):
         fmts.append("convert -depth 16 -colorspace gray '{old}' '{new}'")
         return (fmts, state)
 
+class CQ1ToCV7k(Action):
+    """
+    Convert file names from the pattern used on YEC CQ1 microscopes
+    to Yokogawa's CV7000.
+    """
+
+    name = 'cq1-to-cv7k'
+
+    def __init__(self, opts):
+        super(CQ1ToCV7k, self).__init__(opts)
+        try:
+            self._plate_width, self._plate_height = self._parse_plate_size(opts.plate_size)
+        except AttributeError:
+            raise ValueError(
+                "Parsing CQ1 file names requires"
+                " that a plate size is set. "
+                " Use the `--plate-size` command line option.")
+
+    def _parse_plate_size(self, spec):
+        wh = spec.split('x')
+        if len(wh) != 2:
+            raise ValueError(
+                "Argument of `--plate-size` must have the format WxH,"
+                " where W and H are positive integers.")
+        w = int(wh[0])
+        h = int(wh[1])
+        if w < 1 or h < 1:
+            raise ValueError(
+                "Argument of `--plate-size` must have the format WxH,"
+                " where W and H are positive integers.")
+        return w, h
+
+    def accept(self, filename):
+        match = self._cq1_pattern.match(filename)
+        if not match:
+            raise self.Reject(
+                "file name does not match the configured CQ1 pattern")
+        # extract metadata from the file name
+        try:
+            old_md = match.groupdict()
+            new_md = {}
+            new_md['experiment_name'] = old_md['experiment_name']
+            new_md['well_letter'], new_md['well_nr'] = self._to_cv7k_well(old_md['well_idx'])
+            new_md['site'] = int(old_md['site'])
+            new_md['channel'] = int(old_md['channel_nr'])
+        except Exception as err:
+            raise RuntimeError(
+                "Cannot parse file name `{0}` with Visitron pattern: {1}"
+                .format(filename, err))
+        return (
+            # destination
+            self._cv7000_fmt.format(**new_md),
+            # additional state
+            new_md
+        )
+
+    def _to_cv7k_well(self, well_idx):
+        well_idx = int(well_idx) - 1  # CQ1 uses 1-based indexing
+        assert well_idx < self._plate_width * self._plate_height
+        well_letter = chr(ord('A') + (well_idx // self._plate_width))
+        well_nr = 1 + (well_idx % self._plate_width)
+        return well_letter, well_nr
+
+    _cv7000_fmt = '{experiment_name}_{well_letter}{well_nr:02d}_T0001F{site:03d}L01A{channel:02d}Z01C{channel:02d}.tif'
+
+    # FIXME: is this pattern specific of the current configuration of
+    # the YEC CQ1 microscopes at PelkmansLab?
+    _cq1_pattern = re.compile(
+        (
+            # example patterns to match:
+            #
+            #     20190823TissueARTest_W0016F0001T0001Z000C1.tif
+            #
+            r'(?P<experiment_name>.+)'
+            r'_W(?P<well_idx>[0-9]+)'
+            r'F(?P<site>[0-9]+)'
+            r'T0001Z000'
+            r'C(?P<channel_nr>[0-9]+)'
+            r'\.'
+        )
+    )
 
 class IC6kToCV7k(Action):
     """
@@ -562,6 +643,8 @@ def build_pipeline(args):
             actions.append(IC6kToCV7k(args))
         elif args.creator == 'visi':
             actions.append(VisiToCV7k(args))
+        elif args.creator == 'cq1':
+            actions.append(CQ1ToCV7k(args))
         else:
             raise AssertionError(
                 "Unexpected value for the `--creator` option: {}"
@@ -653,13 +736,15 @@ def parse_command_line(argv):
                          choices=[
                              'ic6k',  # IN Cell 6000
                              'visi',  # Visitron VisiTIRF/VisiScope
+                             'cq1',  # YEC CQ1
                          ],
                          help=("Model of the microscope that produced"
                                " input files.  Sets the format used"
                                " for extracting meta-data from file"
                                " names.  Valid values are:"
                                " `ic6k` for the IN Cell 6000 (default), and"
-                               " `visi` for Visitron's VisiTIRF/Visiscope."))
+                               " `visi` for Visitron's VisiTIRF/Visiscope, and"
+                               " 'cq1' for YEC CQ1."))
     cmdline.add_argument('--from-pattern', '-f',
                          action='store', default='', metavar='PATTERN',
                          help=("Pattern that input files must match."
