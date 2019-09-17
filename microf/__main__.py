@@ -767,7 +767,7 @@ def parse_command_line(argv):
                          action='store',
                          help=("Assume a plate W sites wide and H sites high."
                                " Only needed and used when renaming"
-                               " and the creator is a Visitron microscope."))
+                               " and the creator is a Visitron or YEC microscope."))
     cmdline.add_argument('--rename', action='store_true', default=False,
                          help=("Rename image files"
                                " from the creator microscope naming"
