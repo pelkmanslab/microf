@@ -1,17 +1,17 @@
 from setuptools import setup
 
-from microf.__version__ import __version__
+from mf.__version__ import __version__
 
 setup(
-    name='microf',
+    name='mf',
     version=__version__,
-    packages=['microf'],
+    packages=['mf'],
     entry_points={
-        'console_scripts': ['mf=microf.__main__:main'],
+        'console_scripts': ['mf=mf.__main__:main'],
     },
     ## metadata for PyPI uploads
     description='Miscellaneous image file utilities',
-    url='https://github.com/pelkmanslab/microf.git',
+    url='https://github.com/pelkmanslab/mf.git',
     author=', '.join([
         'Diego Villamaina',
         'Riccardo Murri',
