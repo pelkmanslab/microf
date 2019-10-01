@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='mf',
-    version='1.0.2',
+    version='1.0.3',
     py_modules=['mf'],
     entry_points={
         'console_scripts': ['mf=mf:main'],
