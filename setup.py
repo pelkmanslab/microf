@@ -1,10 +1,8 @@
 from setuptools import setup
 
-from mf.__version__ import __version__
-
 setup(
     name='mf',
-    version=__version__,
+    version='1.0.2',
     packages=['mf'],
     entry_points={
         'console_scripts': ['mf=mf.__main__:main'],

@@ -26,7 +26,7 @@ import sys
 from tempfile import mkdtemp, NamedTemporaryFile
 
 
-from .__version__ import __version__
+__version__='1.0.2'
 
 
 class Action(object):
