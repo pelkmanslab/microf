@@ -10,7 +10,7 @@ setup(
         'console_scripts': ['mf=mf.__main__:main'],
     },
     ## metadata for PyPI uploads
-    description='Miscellaneous image file utilities',
+    description='Simple image file utilities',
     url='https://github.com/pelkmanslab/mf.git',
     author=', '.join([
         'Diego Villamaina',
