@@ -296,7 +296,11 @@ class IC6kToCV7k(Action):
             # If there is no z position in the filename, default to 1
             else:
                 new_md['zslice'] = 1
-            if old_md['channel_tag'] is not None:
+
+            # If Blue+Cy5 -> C06.
+            if old_md['channel_color'] == 'Blue' and old_md['channel_tag'] == 'Cy5':
+                new_md['channel'] = 6
+            elif old_md['channel_tag'] is not None:
                 new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
             else:
                 new_md['channel'] = self._default_channel
