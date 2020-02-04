@@ -300,6 +300,9 @@ class IC6kToCV7k(Action):
             # If Blue+Cy5 -> C06.
             if old_md['channel_color'] == 'Blue' and old_md['channel_tag'] == 'Cy5':
                 new_md['channel'] = 6
+            # If TL-Brightfield + dsRed -> C05.
+            elif old_md['channel_color'] == 'TL-Brightfield' and old_md['channel_tag'] == 'dsRed':
+                new_md['channel'] = 5
             elif old_md['channel_tag'] is not None:
                 new_md['channel'] = self._ic6000_channels[old_md['channel_tag']]
             else:
@@ -325,12 +328,16 @@ class IC6kToCV7k(Action):
             #
             #   20180328_TestAbs_G - 8(fld 4 wv Red - Cy5).tif
             #
+            # 2020-01-23: added dash to color name to support `TL-Brightfield' as in:
+            #
+            #  20191206_NewconditionsBF1_N - 08(fld 49 wv TL-Brightfield - dsRed).tif
+            #
             r'(?P<date>[0-9]{8})_'
             r'(?P<name>[^_]+)_'
             r'(?P<well_letter>[A-Z]+) - (?P<well_nr>[0-9]+)'
             r'\('
             r'fld (?P<site>[0-9]+)'
-            r'( wv (?P<channel_color>[A-Za-z]+) - (?P<channel_tag>\w*))?'
+            r'( wv (?P<channel_color>[A-Za-z\-]+) - (?P<channel_tag>\w*))?'
             r'( z (?P<z_pos>\d+))?'
             r'\)'
             r'\.'
